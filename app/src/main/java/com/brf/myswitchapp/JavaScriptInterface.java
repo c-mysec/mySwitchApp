@@ -10,12 +10,16 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.util.Base64;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
+import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
+
+import com.thanosfisherman.wifiutils.WifiUtils;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -30,34 +34,11 @@ public class JavaScriptInterface {
     UdpUtil udpUtil;
     Crypto crypto;
     BroadcastReceiver wifiScanReceiver;
-    WifiManager wifiManager;
-    private final int MY_PERMISSIONS_ACCESS_COARSE_LOCATION = 1;
     JavaScriptInterface(Activity a, WebView w, UdpUtil u, Crypto c) {
         activity = a;
         webView = w;
         crypto = c;
         udpUtil = u;
-        wifiManager = (WifiManager)
-                activity.getSystemService(Context.WIFI_SERVICE);
-
-        wifiScanReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context c, Intent intent) {
-                boolean success = intent.getBooleanExtra(
-                        WifiManager.EXTRA_RESULTS_UPDATED, false);
-                if (success) {
-                    scanSuccess();
-                } else {
-                    // scan failure handling
-                    scanSuccess();
-                }
-            }
-        };
-
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
-        activity.registerReceiver(wifiScanReceiver, intentFilter);
-
     }
     @JavascriptInterface
     public void setPassword(final String passwd) {
@@ -85,19 +66,15 @@ public class JavaScriptInterface {
     }
     @JavascriptInterface
     public void scanWifi() {
-        if (ActivityCompat.checkSelfPermission(activity, Manifest.permission.ACCESS_COARSE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                    activity,
-                    new String[]{Manifest.permission.ACCESS_COARSE_LOCATION},
-                    MY_PERMISSIONS_ACCESS_COARSE_LOCATION);
-        } else {
-            boolean success = wifiManager.startScan();
-            Log.i("Javascript", success?"1":"0");
-        }
+        WifiUtils.withContext(activity).scanWifi(this::getScanResults).start();
     }
-    private void scanSuccess() {
-        List<ScanResult> results = wifiManager.getScanResults();
+    private void getScanResults(@NonNull final List<ScanResult> results)
+    {
+        if (results.isEmpty())
+        {
+            Log.i("Javascript", "SCAN RESULTS IT'S EMPTY");
+            return;
+        }
         activity.runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -115,5 +92,6 @@ public class JavaScriptInterface {
                 }
             }
         });
+        Log.i("Javascript", "GOT SCAN RESULTS " + results);
     }
 }
